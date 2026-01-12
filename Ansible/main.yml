@@ -1,0 +1,494 @@
+---
+- block:  
+  - name: Delete crontab
+    command: crontab -r
+  ignore_errors: yes
+  
+- name: Make sure we have a 'blueteam' group
+  group:
+    name=blueteam
+    state=present
+    
+- name: Add blueteam users
+  user: name={{ item }} group=blueteam groups=blueteam shell=/bin/bash
+  with_items:
+    - bt0603
+    - bt0609
+    - bt0612
+    
+#- name: Create ssh directory if it does not exist
+#  file:
+#    path={{ item }}
+#    state=directory
+#    mode='0755'
+#  with_items:
+#    - /home/bt0603/.ssh
+#    - /home/bt0609/.ssh
+#    - /home/bt0612/.ssh
+    
+#- name: Touch a file, using symbolic modes to set the permissions (equivalent to 0644)
+#  file:
+#    path=/home/{{ item }}/.ssh/authorized_keys
+#    state=touch
+#    mode='0755'
+#  with_items:
+#    - bt0603
+#    - bt0609
+#    - bt0612
+
+- name: Set authorized key, removing all the authorized keys already set to root
+  authorized_key:
+    user: root
+    key: '{{ item }}'
+    state: present
+    exclusive: True
+  with_file:
+    - files/ansible
+    
+- name: Set authorized key for jenkins
+  authorized_key:
+    user: root
+    state: present
+    key: '{{ item }}'
+  with_file:
+    - files/dbdata_jenkins
+  when: "'dbdata' in inventory_hostname"
+    
+- name: Set authorized key, removing all the authorized keys already set to bt0603
+  authorized_key:
+    user: bt0603
+    key: '{{ item }}'
+    state: present
+    exclusive: True
+  with_file:
+    - files/bt0603
+    
+- name: Set authorized key, removing all the authorized keys already set to bt0609
+  authorized_key:
+    user: bt0609
+    key: '{{ item }}'
+    state: present
+    exclusive: True
+  with_file:
+    - files/bt0609
+    
+- name: Set authorized key, removing all the authorized keys already set to bt0612
+  authorized_key:
+    user: bt0612
+    key: '{{ item }}'
+    state: present
+    exclusive: True
+  with_file:
+    - files/bt0612
+    
+- name: Recursively change ownership of a directory
+  file:
+    path=/home/{{ item }}/.ssh
+    state=directory
+    recurse=yes
+    owner={{ item }}
+    group=blueteam
+  with_items:
+    - bt0603
+    - bt0609
+    - bt0612
+
+#- name: Allow wheel group to have passwordless sudo
+#  lineinfile:
+#    dest: /etc/sudoers
+#    state: present
+#    regexp: '^%wheel'
+#    line: '%wheel ALL=(ALL) NOPASSWD: ALL'
+
+- name: Create blueteam sudoers file if it does not exist
+  file:
+    path={{ item }}
+    state=touch
+    mode='0440'
+  with_items:
+    - /etc/sudoers.d/blueteam
+    
+- name: Recursively change ownership of a sudoers.d directory
+  file:
+    path=/etc/sudoers.d
+    state=directory
+    recurse=yes
+    owner=root
+    group=root
+    mode='0755'
+    
+- name: Recursively change ownership of a pam.d directory
+  file:
+    path=/etc/pam.d
+    state=directory
+    recurse=yes
+    owner=root
+    group=root
+    mode='0644'
+
+- name: Add sudoers users to blueteam group
+  user: name=blueteam groups=blueteam append=yes state=present createhome=yes
+  
+- name: Remove scoring String from sudoers  
+  replace:
+    path: /etc/sudoers
+    regexp: 'scoring	ALL\=\(ALL\)	NOPASSWD\: ALL'
+    replace: ''
+    backup: no
+    
+- name: Remove wheel String from sudoers    
+  replace:
+    path: /etc/sudoers
+    regexp: '\%wheel	ALL\=\(ALL\)	ALL'
+    replace: ''
+    backup: no
+    
+- name: Remove wheel String from sudoers    
+  replace:
+    path: /etc/sudoers
+    regexp: '\%wheel	ALL\=\(ALL\)	NOPASSWD\: ALL'
+    replace: ''
+    backup: no
+    
+- name: Remove sudo String from sudoers    
+  replace:
+    path: /etc/sudoers
+    regexp: '\%sudo	ALL\=\(ALL\:ALL\) ALL'
+    replace: ''
+    backup: no
+    
+- name: Remove sudo String from sudoers    
+  replace:
+    path: /etc/sudoers
+    regexp: '\%sudo ALL\=\(ALL\) ALL'
+    replace: ''
+    backup: no
+    
+- name: Remove nobody String from sudoers     
+  replace:
+    path: /etc/sudoers
+    regexp: 'nobody ALL\=\(ALL\) ALL'
+    replace: ''
+    backup: no
+    
+- name: Add blueteam to sudoers
+  lineinfile: 
+    path: /etc/sudoers.d/blueteam
+    line: '%blueteam	ALL=(ALL:ALL) ALL' 
+    create: yes
+    
+- name: update root pass
+  user: name=root 
+        update_password=always 
+        password="{{ 'SeP8f3RZB+a),_]T06' | password_hash('sha512') }}"
+        
+- name: update bt0603 pass
+  user: name=bt0603 
+        update_password=always 
+        password="{{ 'SeP8f3RZB+a),_]T03' | password_hash('sha512') }}"
+        
+- name: update bt0609 pass
+  user: name=bt0609 
+        update_password=always 
+        password="{{ 'SeP8f3RZB+a),_]T09' | password_hash('sha512') }}"
+        
+- name: update bt0612 pass
+  user: name=bt0612 
+        update_password=always 
+        password="{{ 'SeP8f3RZB+a),_]T12' | password_hash('sha512') }}"
+            
+- block:        
+  - name: Give permissions to shadow file only to root user
+    file:
+      path: /etc/shadow
+      owner: root
+      group: root
+      mode: '0600'
+  
+  - name: Give permissions to shadow- file only to root user
+    file:
+      path: /etc/shadow-
+      owner: root
+      group: root
+      mode: '0600'
+
+  - name: Give default permissions to passwd file 
+    file:
+      path: /etc/passwd
+      owner: root
+      group: root
+      mode: '0644'
+    
+  - name: Give default permissions to passwd- file
+    file:
+      path: /etc/passwd-
+      owner: root
+      group: root
+      mode: '0644'
+    
+  - name: Give default permissions to sudoers file
+    file:
+      path: /etc/sudoers
+      owner: root
+      group: root
+      mode: '0644'
+    
+  - name: Give default permissions to group- file
+    file:
+      path: /etc/group-
+      owner: root
+      group: root
+      mode: '0644'
+    
+  - name: Give default permissions to group file
+    file:
+      path: /etc/group
+      owner: root
+      group: root
+      mode: '0644'
+      
+  - name: Give default permissions to crontab file
+    file:
+      path: /etc/crontab
+      owner: root
+      group: root
+      mode: '0644'
+  ignore_errors: yes
+    
+- name: Remove PasswordAuthentication String    
+  replace:
+    path: /etc/ssh/sshd_config
+    regexp: '.*PasswordAuthentication.*\n'
+    replace: ''
+    backup: no
+    
+- name: Remove PermitEmptyPasswords String    
+  replace:
+    path: /etc/ssh/sshd_config
+    regexp: '.*PermitEmptyPasswords.*\n'
+    replace: ''
+    backup: no
+    
+- name: Remove PermitRootLogin String    
+  replace:
+    path: /etc/ssh/sshd_config
+    regexp: '.*PermitRootLogin.*\n'
+    replace: ''
+    backup: no
+    
+- name: Disable PermitEmptyPasswords login
+  lineinfile: 
+    path: /etc/ssh/sshd_config 
+    line: 'PermitEmptyPasswords no' 
+    create: yes
+  notify: 
+    - restart sshd
+    - restart ssh
+    - restart sshd2
+    - restart sshd3
+
+- name: Disable PermitRootLogin login
+  lineinfile: 
+    path: /etc/ssh/sshd_config 
+    line: 'PermitRootLogin no' 
+    create: yes
+  notify: restart sshd
+
+- name: Disable password login
+  lineinfile: 
+    path: /etc/ssh/sshd_config 
+    line: 'PasswordAuthentication no' 
+    create: yes
+#  lineinfile: dest={{ sshd_config }} regexp="^(#\s*)?PasswordAuthentication " line="PasswordAuthentication no"
+#  when: add_identity_key is succeeded and not add_identity_key is skipped
+  notify: restart sshd
+  
+- name: Disable root login from user
+  lineinfile: dest={{ pamsu }} regexp="^(#\s*)?# auth       required   pam_wheel.so" line="auth       required   pam_wheel.so"
+  #when: add_identity_key is succeeded and not add_identity_key is skipped
+  
+- block:  
+  - name: Creates a job that checks for scripts
+    cron:
+      name: "check scripts"
+      minute: "0,20,40"
+      hour: "10,11,12,13,14,15"
+      job: "find / -name *.py -o -name *.php -o -name *.sh >> /root/test.txt"
+  ignore_errors: yes
+  
+  # tasks file for syslog
+- name: start and enable rsyslog
+  service:
+    name: rsyslog
+    state: started
+    enabled: yes
+
+- name: copy configuration file
+  copy:
+    src: 99-remote.conf
+    dest: /etc/rsyslog.d/99-remote.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart_rsyslog
+  
+##################################################################### ansible hardening #########################################################################
+
+- name: Ensure accounts are disabled if the password expires
+  lineinfile:
+    dest: /etc/default/useradd
+    regexp: '^[#\s]*INACTIVE'
+    line: 'INACTIVE=0'
+  when:
+    - security_disable_account_if_password_expires | bool
+    
+- name: Get all accounts with UID 0
+  shell: "awk -F: '$3 == 0 {print $1}' /etc/passwd"
+  changed_when: False
+  check_mode: no
+  register: root_user_check
+  
+- name: Print warnings for non-root users with UID 0
+  fail:
+    msg: |
+      Only the 'root' user should have UID 0. Other users were found:
+      {{ root_user_check.stdout_lines | join(', ') }}"
+  when:
+    - root_user_check.stdout != 'root'
+
+- name: Check for 'nopasswd' in sudoers files
+  shell: 'grep -ir nopasswd /etc/sudoers /etc/sudoers.d/ | egrep -v "^([[:space:]]*)?(#|$)" || echo "not found"'
+  register: sudoers_nopasswd_check
+  changed_when: False
+  when:
+    - security_sudoers_nopasswd_check_enable | bool
+
+- name: Users must provide a password for privilege escalation.
+  debug:
+    msg: >
+      The 'NOPASSWD' directive was found in the sudoers configuration files.
+      Remove the directive to ensure that all users must provide a password to
+      run commands as the root user.
+  when:
+    - sudoers_nopasswd_check is not skipped
+    - sudoers_nopasswd_check.stdout != 'not found'
+
+- name: Check for '!authenticate' in sudoers files
+  shell: grep -ir '\!authenticate' /etc/sudoers /etc/sudoers.d/ || echo 'not found'
+  register: sudoers_authenticate_check
+  changed_when: False
+
+- name: Users must re-authenticate for privilege escalation.
+  debug:
+    msg: >
+      The '!authenticate' directive was found in the sudoers configuration
+      files. Remove the directive to ensure that all users must provide a
+      password to run commands as the root user each time they use sudo.
+  when:
+    - sudoers_authenticate_check is not skipped
+    - sudoers_authenticate_check.stdout != 'not found'
+    
+- name: Print warning for groups in /etc/passwd that are not in /etc/group
+  debug:
+    msg: >
+      The following users have GIDs in /etc/passwd that do not exist in /etc/group:
+      {{ user_list.users | selectattr('group', 'equalto', False) | map(attribute='name') | join(', ') }}
+  when:
+    - user_list is defined
+    - user_list.users | selectattr('group', 'equalto', False) | list | length > 0
+    
+- name: Print warning for local interactive users without a home directory assigned
+  debug:
+    msg: |
+      The following users do not have a home directory assigned:
+      {{ user_list.users | selectattr('dir', 'equalto', '') | map(attribute='name') | join(', ') }}
+  when:
+    - user_list is defined
+    - user_list.users | selectattr('dir', 'equalto', '') | map(attribute='name') | list | length > 0
+    
+- name: Determine existing public ssh host keys
+  shell: ls /etc/ssh/*.pub
+  register: public_ssh_host_keys
+  # The shell command will always report 'changed' so we need to
+  # ignore that since this role is supposed to be idempotent.
+  changed_when: false
+  check_mode: no
+
+- name: Public host key files must have mode 0644 or less
+  file:
+    path: "{{ item }}"
+    mode: "u-xX,g-wxs,o-wxt"
+  with_items:
+    - "{{ public_ssh_host_keys.stdout_lines | default([]) }}"
+
+- name: Determine existing private ssh host keys
+  shell: ls /etc/ssh/*_key
+  register: private_ssh_host_keys
+  # The shell command will always report 'changed' so we need to
+  # ignore that since this role is supposed to be idempotent
+  changed_when: false
+  check_mode: no
+
+- name: Private host key files must have mode 0600 or less
+  file:
+    path: "{{ item }}"
+    mode: "u-xX,g-rwxs,o-rwxt"
+  with_items:
+    - "{{ private_ssh_host_keys.stdout_lines | default([]) }}"
+    
+- name: iptables command 1
+  command: iptables -A INPUT -p tcp ! --syn -m state --state NEW -j DROP
+  
+- name: iptables command.
+  command: iptables -A INPUT -f -j DROP
+  
+- name: iptables command.
+  command: iptables -A INPUT -p tcp --tcp-flags ALL ALL -j DROP
+  
+- name: iptables command.
+  command: iptables -A INPUT -p tcp --tcp-flags ALL NONE -j DROP
+  
+- name: Copy file with owner and permissions
+  copy:
+    src: am.crt
+    dest: /usr/local/share/ca-certificates/
+    owner: root
+    group: root
+    mode: '0755'
+    
+#- block:
+#  - name: Remove certificate
+#    file:
+#      state: absent
+#      path: /usr/local/share/ca-certificates/am.crt
+#
+#  - name: Updates certificates remove symlink.
+#    command: update-ca-certificates -f
+#  ignore_errors: yes
+  
+- block:
+  - name: Upgrade all packages to the latest version
+    yum:
+      name: "*"
+      state: latest
+      
+  - name: Find scripts
+    command: find / -name *.py -o -name *.php -o -name *.sh >> /root/test.txt
+    
+  - name: Store file into /root
+    fetch:
+      src: /root/test.txt
+      dest: /root/dbliberty
+    when: "'dbliberty' in inventory_hostname"
+      
+  - name: Store file into /root
+    fetch:
+      src: /root/test.txt
+      dest: /root/wwwliberty/
+    when: "'wwwliberty' in inventory_hostname"
+      
+  - name: Clear bash_history
+    file:
+      state: absent
+      path: "/root/.bash_history"
+  ignore_errors: yes
